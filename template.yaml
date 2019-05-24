@@ -9,7 +9,7 @@ Globals:
         Timeout: 30
         Tracing: Active
         Tags:
-            Project: ValidateNameApp
+            Project: GreetByName
 
 Resources:
 
@@ -104,7 +104,6 @@ Resources:
     GreetByNameStateMachine:
         Type: "AWS::StepFunctions::StateMachine"
         Properties:
-#           StateMachineName: ProcessNameStateMachine
             RoleArn: !GetAtt StepFunctionsServiceRole.Arn
             DefinitionString: !Sub |-
                 {
@@ -162,6 +161,6 @@ Outputs:
         Description: Result SNS Topic Name
         Value: !Ref ResultTopic
         
-    ResultQueueName:
-        Description: Result SQS Queue Name
+    ResultQueueUrl:
+        Description: Result SQS Queue URL
         Value: !Ref ResultQueue

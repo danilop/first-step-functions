@@ -1,0 +1,167 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Sample AWS Step Function app
+
+Globals:
+
+    Function:
+        Runtime: nodejs10.x
+        Timeout: 30
+        Tracing: Active
+        Tags:
+            Project: ValidateNameApp
+
+Resources:
+
+    ValidateNameFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            Description: Validate name
+            CodeUri: ./src/
+            Handler: ValidateName.handler
+
+    GreetNameFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            Description: Greet name
+            CodeUri: ./src/
+            Handler: GreetName.handler
+
+    InvalidNameFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            Description: Invalid name
+            CodeUri: ./src/
+            Handler: InvalidName.handler
+
+    ResultQueue:
+        Type: AWS::SQS::Queue
+
+    ResultTopic:
+        Type: AWS::SNS::Topic
+        Properties:
+            Subscription:
+            - Endpoint: !GetAtt ResultQueue.Arn
+              Protocol: sqs
+
+    AllowTopicToPublishOnQueue:
+        Type: AWS::SQS::QueuePolicy
+        Properties:
+            Queues: [ !Ref ResultQueue ]
+            PolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                    -   Effect: "Allow"
+                        Action:
+                            - "sqs:SendMessage"
+                        Principal: "*"
+                        Resource: !GetAtt ResultQueue.Arn
+                        Condition:
+                            ArnEquals:
+                                aws:SourceArn: !Ref ResultTopic
+
+    StepFunctionsServiceRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: !Join ["", ["/", !Ref "AWS::StackName", "/"]]
+            ManagedPolicyArns:
+                - "arn:aws:iam::aws:policy/AWSStepFunctionsFullAccess"
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Sid: "AllowStepFunctionsServiceToAssumeRole"
+                        Effect: "Allow"
+                        Action:
+                            - "sts:AssumeRole"
+                        Principal:
+                            Service:
+                                - !Sub "states.${AWS::Region}.amazonaws.com"
+            Policies:
+                -   
+                    PolicyName: "InvokeFunctions"
+                    PolicyDocument:
+                        Version: '2012-10-17'
+                        Statement:
+                            -   Effect: "Allow"
+                                Action:
+                                    - "lambda:InvokeFunction"
+                                Resource: 
+                                    - !Sub ${ValidateNameFunction.Arn}
+                                    - !Sub ${GreetNameFunction.Arn}
+                                    - !Sub ${InvalidNameFunction.Arn}
+                -   
+                    PolicyName: "Publish2Topic"
+                    PolicyDocument:
+                        Version: '2012-10-17'
+                        Statement:
+                            -   Effect: "Allow"
+                                Action:
+                                    - "sns:Publish"
+                                Resource: 
+                                    - !Ref ResultTopic
+
+    GreetByNameStateMachine:
+        Type: "AWS::StepFunctions::StateMachine"
+        Properties:
+#           StateMachineName: ProcessNameStateMachine
+            RoleArn: !GetAtt StepFunctionsServiceRole.Arn
+            DefinitionString: !Sub |-
+                {
+                    "Comment": "Greeting by Name",
+                    "StartAt": "ValidateName",
+                    "States": {
+                        "ValidateName": {
+                            "Type": "Task",
+                            "Resource": "${ValidateNameFunction.Arn}",
+                            "Catch": [
+                                {
+                                    "ErrorEquals": [
+                                        "NameError"
+                                    ],
+                                    "Next": "InvalidName"
+                                }
+                            ],
+                            "Next": "GreetName"
+                        },
+                        "InvalidName": {
+                            "Type": "Task",
+                            "Resource": "${InvalidNameFunction.Arn}",
+                            "Next": "Publish2SNS"
+                        },
+                        "GreetName": {
+                            "Type": "Task",
+                            "Resource": "${GreetNameFunction.Arn}",
+                            "Next": "Publish2SNS"
+                        },
+                        "Publish2SNS": {
+                            "Type": "Task",
+                            "Resource": "arn:aws:states:::sns:publish",
+                            "Parameters": {
+                                "TopicArn": "${ResultTopic}",
+                                "Message.$": "$.message",
+                                "MessageAttributes": {
+                                    "Attrribute1": {
+                                        "DataType": "String",
+                                        "StringValue": "value of my attribute no 1"
+                                    },
+                                    "Attrribute2": {
+                                        "DataType": "String",
+                                        "StringValue": "value of my attribute no 2"
+                                    }
+                                }
+                            },
+                            "End": true
+                        }
+                    }
+                }
+
+Outputs:
+
+    ResultTopicName:
+        Description: Result SNS Topic Name
+        Value: !Ref ResultTopic
+        
+    ResultQueueName:
+        Description: Result SQS Queue Name
+        Value: !Ref ResultQueue

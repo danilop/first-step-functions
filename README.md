@@ -1,2 +1,2 @@
 # first-step-functions
-Sample AWS Step Functions
+Sample AWS Step Functions application

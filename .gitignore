@@ -1,4 +1,3 @@
-deploy.sh
 packaged.yaml
 .aws-sam/
 StateMachine.json

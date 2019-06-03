@@ -7,7 +7,6 @@ Globals:
     Function:
         Runtime: nodejs10.x
         Timeout: 30
-        Tracing: Active
         Tags:
             Project: GreetByName
 
@@ -140,11 +139,11 @@ Resources:
                                 "TopicArn": "${ResultTopic}",
                                 "Message.$": "$.message",
                                 "MessageAttributes": {
-                                    "Attrribute1": {
+                                    "Attribute1": {
                                         "DataType": "String",
                                         "StringValue": "value of my attribute no 1"
                                     },
-                                    "Attrribute2": {
+                                    "Attr ibute2": {
                                         "DataType": "String",
                                         "StringValue": "value of my attribute no 2"
                                     }
